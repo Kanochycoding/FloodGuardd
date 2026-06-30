@@ -15,6 +15,23 @@ const NOTIFICATION_HISTORY_KEY = "floodGuardNotificationHistory";
 const MAX_HISTORY_ITEMS = 25;
 const NOTIFICATION_SW_URL = "./notification-sw.js";
 
+function safeGetStorageItem(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (_error) {
+    return null;
+  }
+}
+
+function safeSetStorageItem(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    return true;
+  } catch (_error) {
+    return false;
+  }
+}
+
 function getDefaultNotificationSettings() {
   return {
     enabled: true,
@@ -67,7 +84,7 @@ function formatQuietHour(hour24) {
 
 function readSettings() {
   const defaults = getDefaultNotificationSettings();
-  const raw = localStorage.getItem(NOTIFICATION_SETTINGS_KEY);
+  const raw = safeGetStorageItem(NOTIFICATION_SETTINGS_KEY);
   if (!raw) return defaults;
   const parsed = safeParseJSON(raw, null);
   if (!parsed || typeof parsed !== "object") return defaults;
@@ -81,11 +98,11 @@ function readSettings() {
 }
 
 function saveSettings(settings) {
-  localStorage.setItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(settings));
+  safeSetStorageItem(NOTIFICATION_SETTINGS_KEY, JSON.stringify(settings));
 }
 
 function readHistory() {
-  const raw = localStorage.getItem(NOTIFICATION_HISTORY_KEY);
+  const raw = safeGetStorageItem(NOTIFICATION_HISTORY_KEY);
   if (!raw) return [];
   const parsed = safeParseJSON(raw, []);
   if (!Array.isArray(parsed)) return [];
@@ -122,7 +139,7 @@ function renderHistory() {
 function appendHistoryEntry(entry) {
   const history = readHistory();
   history.unshift(entry);
-  localStorage.setItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY_ITEMS)));
+  safeSetStorageItem(NOTIFICATION_HISTORY_KEY, JSON.stringify(history.slice(0, MAX_HISTORY_ITEMS)));
 }
 
 function populateFormFromSettings(settings) {
@@ -160,9 +177,14 @@ function updatePermissionStatusLabel() {
     return;
   }
   if (!("Notification" in window)) {
-    permissionStatus.textContent = "This browser does not support push notifications.";
+    permissionStatus.textContent =
+      "This browser does not support web push notifications. Try Chrome/Edge or install app to home screen.";
+    if (requestPermissionButton) requestPermissionButton.disabled = true;
+    if (testNotificationButton) testNotificationButton.disabled = true;
     return;
   }
+  if (requestPermissionButton) requestPermissionButton.disabled = false;
+  if (testNotificationButton) testNotificationButton.disabled = false;
   if (Notification.permission === "granted") {
     permissionStatus.textContent = "Browser notifications are allowed.";
     return;
@@ -179,7 +201,14 @@ async function requestPermission() {
     settingsStatus.textContent = "This browser does not support notifications.";
     return;
   }
-  const permission = await Notification.requestPermission();
+  let permission = "default";
+  try {
+    permission = await Notification.requestPermission();
+  } catch (_error) {
+    settingsStatus.textContent =
+      "Could not request notification permission on this browser/device.";
+    return;
+  }
   if (permission === "granted") {
     settingsStatus.textContent = "Notifications enabled successfully.";
   } else {

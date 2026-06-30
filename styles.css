@@ -844,6 +844,27 @@ select:focus {
 }
 
 @media (max-width: 640px) {
+  .top-nav {
+    align-items: stretch;
+  }
+
+  .nav-left {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .top-right-menu {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .menu-dropdown {
+    min-width: 210px;
+    max-width: calc(100vw - 32px);
+    right: 0;
+  }
+
   .input-row {
     flex-direction: column;
   }
