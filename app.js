@@ -835,8 +835,9 @@ async function getBestAvailableCoordinates() {
       });
       return { ...relaxed, source: "gps" };
     } catch (_error2) {
-      const ip = await getApproximateCoordinatesFromIP();
-      return { ...ip, source: "ip" };
+      throw new Error(
+        "Current location unavailable. Turn on phone location/GPS and allow browser location permission.",
+      );
     }
   }
 }
