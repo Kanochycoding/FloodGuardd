@@ -38,6 +38,7 @@ const FLOOD_NOTIFICATION_HISTORY_KEY = "floodGuardNotificationHistory";
 const FLOOD_NOTIFICATION_COOLDOWN_MS = 20 * 60 * 1000;
 const FLOOD_NOTIFICATION_HISTORY_LIMIT = 30;
 const FLOOD_NOTIFICATION_SW_URL = "./notification-sw.js";
+const LOCATION_TO_NOTIFICATION_PROMPT_KEY = "floodGuardLocationNotificationPrompted";
 const GPS_PRECISE_ACCURACY_METERS = 3000;
 const GPS_MAX_ACCEPTABLE_ACCURACY_METERS = 10000;
 const FLOOD_SW_READY_TIMEOUT_MS = 4000;
@@ -254,6 +255,13 @@ currentLocationButton.addEventListener("click", async () => {
           : `Using your current GPS location (~${roundedAccuracy}m accuracy).`;
     } else {
       geoStatus.textContent = "Using your current GPS location in Ghana.";
+    }
+
+    const notificationPermission = await promptNotificationAfterLocationPermission();
+    if (notificationPermission === "granted") {
+      geoStatus.textContent += " Browser notifications are now enabled.";
+    } else if (notificationPermission === "denied") {
+      geoStatus.textContent += " Notifications were blocked in browser settings.";
     }
   } catch (error) {
     showError(error instanceof Error ? error.message : "Location request failed.");
@@ -1654,6 +1662,30 @@ function describeWeatherCondition(weatherCode, maxDailyRain) {
   if ([95, 96, 99].includes(code)) return "Thunderstorm";
   if (maxDailyRain >= 1) return "Rain showers expected";
   return "Partly cloudy";
+}
+
+async function promptNotificationAfterLocationPermission() {
+  if (!window.isSecureContext || !("Notification" in window)) return null;
+  if (Notification.permission !== "default") return null;
+
+  try {
+    const prompted = localStorage.getItem(LOCATION_TO_NOTIFICATION_PROMPT_KEY);
+    if (prompted === "1") return null;
+  } catch (_error) {
+    // Continue even if storage is unavailable.
+  }
+
+  try {
+    localStorage.setItem(LOCATION_TO_NOTIFICATION_PROMPT_KEY, "1");
+  } catch (_error) {
+    // Ignore storage failure.
+  }
+
+  try {
+    return await Notification.requestPermission();
+  } catch (_error) {
+    return null;
+  }
 }
 
 async function fetchWithHelpfulErrors(url, serviceName) {
