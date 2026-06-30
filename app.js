@@ -41,6 +41,7 @@ const FLOOD_NOTIFICATION_SW_URL = "./notification-sw.js";
 const GPS_PRECISE_ACCURACY_METERS = 3000;
 const GPS_MAX_ACCEPTABLE_ACCURACY_METERS = 10000;
 const FLOOD_SW_READY_TIMEOUT_MS = 4000;
+const NETWORK_REQUEST_TIMEOUT_MS = 12000;
 const NEWS_SIGNAL_FEEDS = [
   "https://news.google.com/rss/search?q=ghana+flood+OR+flooding+ghana+when:7d&hl=en-GB&gl=GH&ceid=GH:en",
   "https://news.google.com/rss/search?q=site:myjoyonline.com+flood+ghana+when:7d&hl=en-GB&gl=GH&ceid=GH:en",
@@ -675,11 +676,12 @@ async function getHistoricalContext(latitude, longitude, days) {
   };
 }
 
-async function getRiskInputs(latitude, longitude) {
-  const [weather, historicalResult] = await Promise.all([
-    getWeather(latitude, longitude),
-    getHistoricalContext(latitude, longitude, HISTORICAL_DAYS).catch(() => null),
-  ]);
+async function getRiskInputs(latitude, longitude, options = {}) {
+  const includeHistorical = options.includeHistorical !== false;
+  const weather = await getWeather(latitude, longitude);
+  const historicalResult = includeHistorical
+    ? await getHistoricalContext(latitude, longitude, HISTORICAL_DAYS).catch(() => null)
+    : null;
   return {
     ...weather,
     pastRainTotal: historicalResult ? historicalResult.pastRainTotal : 0,
@@ -890,7 +892,9 @@ async function loadFloodProneAreas() {
     const resolved = await Promise.all(
       GHANA_FLOOD_HOTSPOTS.map(async (area) => {
         try {
-          const riskInputs = await getRiskInputs(area.latitude, area.longitude);
+          const riskInputs = await getRiskInputs(area.latitude, area.longitude, {
+            includeHistorical: false,
+          });
           const placeContext = { name: area.name, country: "Ghana" };
           const risk = evaluateHotspotRisk(area, riskInputs, placeContext);
           const localNewsScore = getLocalNewsScore(placeContext);
@@ -904,6 +908,7 @@ async function loadFloodProneAreas() {
             maxHourlyRain: riskInputs.maxHourlyRain,
             pastRainTotal: riskInputs.pastRainTotal,
             historicalDays: riskInputs.historicalDays,
+            historicalAvailable: riskInputs.historicalAvailable,
             localNewsScore,
             isCurrentFlooding,
           };
@@ -925,6 +930,7 @@ async function loadFloodProneAreas() {
             maxHourlyRain: 0,
             pastRainTotal: 0,
             historicalDays: HISTORICAL_DAYS,
+            historicalAvailable: false,
             localNewsScore: 0,
             isCurrentFlooding: false,
           };
@@ -994,7 +1000,11 @@ function renderHotspotList(areas) {
               ? `<p class="hotspot-live">Currently flooding / active flood pressure</p>`
               : ""
           }
-          <p class="hotspot-meta">Max daily rain: ${area.maxDailyRain.toFixed(1)} mm | Past ${area.historicalDays}-day rain: ${area.pastRainTotal.toFixed(1)} mm</p>
+          <p class="hotspot-meta">Max daily rain: ${area.maxDailyRain.toFixed(1)} mm | ${
+            area.historicalAvailable
+              ? `Past ${area.historicalDays}-day rain: ${area.pastRainTotal.toFixed(1)} mm`
+              : "Past rainfall: updating in background"
+          }</p>
         </div>
         <div>
           <span class="risk-badge ${area.riskLevel}">${escapeHtml(area.riskLabel)}</span>
@@ -1648,7 +1658,13 @@ function describeWeatherCondition(weatherCode, maxDailyRain) {
 
 async function fetchWithHelpfulErrors(url, serviceName) {
   try {
-    return await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), NETWORK_REQUEST_TIMEOUT_MS);
+    try {
+      return await fetch(url, { signal: controller.signal });
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
   } catch (_error) {
     throw new Error(
       `Network request failed for ${serviceName}. Check internet and run via localhost.`,
