@@ -20,6 +20,7 @@ const alertLevel = document.getElementById("alert-level");
 const alertTitle = document.getElementById("alert-title");
 const alertMessage = document.getElementById("alert-message");
 const metrics = document.getElementById("metrics");
+const resultViewMapButton = document.getElementById("result-view-map-btn");
 
 const GHANA_BOUNDS = { minLat: 4.4, maxLat: 11.5, minLon: -3.4, maxLon: 1.4 };
 const HISTORICAL_DAYS = 14;
@@ -320,6 +321,15 @@ hotspotList.addEventListener("click", (event) => {
   const longitude = Number(trigger.getAttribute("data-lon"));
   const name = trigger.getAttribute("data-name");
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !name) return;
+  updateMap(latitude, longitude, name);
+  focusInteractiveMap();
+});
+
+resultViewMapButton?.addEventListener("click", () => {
+  const latitude = Number(resultViewMapButton.getAttribute("data-lat"));
+  const longitude = Number(resultViewMapButton.getAttribute("data-lon"));
+  const name = resultViewMapButton.getAttribute("data-name") || "Selected Location";
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
   updateMap(latitude, longitude, name);
   focusInteractiveMap();
 });
@@ -770,6 +780,11 @@ function renderResult(place, weather, risk) {
   alertTitle.textContent = `${risk.headline} - ${place.name}, ${place.country}`;
   alertMessage.textContent = risk.advice;
   updateMap(place.latitude, place.longitude, `${place.name}, Ghana`);
+  if (resultViewMapButton) {
+    resultViewMapButton.setAttribute("data-lat", String(place.latitude));
+    resultViewMapButton.setAttribute("data-lon", String(place.longitude));
+    resultViewMapButton.setAttribute("data-name", `${place.name}, Ghana`);
+  }
 
   metrics.innerHTML = "";
   [
@@ -803,6 +818,11 @@ function showError(message) {
   alertTitle.textContent = "Unable to evaluate flood risk";
   alertMessage.textContent = message;
   metrics.innerHTML = "";
+  if (resultViewMapButton) {
+    resultViewMapButton.removeAttribute("data-lat");
+    resultViewMapButton.removeAttribute("data-lon");
+    resultViewMapButton.removeAttribute("data-name");
+  }
 }
 
 async function getBestAvailableCoordinates() {
