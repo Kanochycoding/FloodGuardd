@@ -233,7 +233,8 @@ form.addEventListener("submit", async (event) => {
 
 currentLocationButton.addEventListener("click", async () => {
   if (!navigator.geolocation) {
-    geoStatus.textContent = "Geolocation is not supported on this browser.";
+    geoStatus.textContent =
+      "Current location is unavailable on this browser. Use Chrome/Edge/Safari with location enabled.";
     return;
   }
 
@@ -284,7 +285,19 @@ currentLocationButton.addEventListener("click", async () => {
     }
   } catch (error) {
     showError(error instanceof Error ? error.message : "Location request failed.");
-    geoStatus.textContent = "Could not use current location.";
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("Location permission denied")) {
+      geoStatus.textContent =
+        "Please allow location permission in your browser to use current location.";
+    } else if (
+      message.includes("Current location unavailable") ||
+      message.includes("Location request timed out")
+    ) {
+      geoStatus.textContent =
+        "Turn on phone location/GPS and try again. Then allow browser location permission.";
+    } else {
+      geoStatus.textContent = "Could not use current location. Please enable location and allow access.";
+    }
   } finally {
     setLoadingState(false);
   }
@@ -839,15 +852,17 @@ function readCurrentCoordinates(options) {
         }),
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
-          reject(new Error("Location permission denied."));
+          reject(
+            new Error("Location permission denied. Please allow location access for this site."),
+          );
           return;
         }
         if (error.code === error.POSITION_UNAVAILABLE) {
-          reject(new Error("Current location unavailable."));
+          reject(new Error("Current location unavailable. Turn on device location/GPS."));
           return;
         }
         if (error.code === error.TIMEOUT) {
-          reject(new Error("Location request timed out."));
+          reject(new Error("Location request timed out. Ensure GPS/location is enabled."));
           return;
         }
         reject(new Error("Could not read current location."));
