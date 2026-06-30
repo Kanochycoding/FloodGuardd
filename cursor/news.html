@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; connect-src 'self' https://api.allorigins.win https://news.google.com https://nitter.net; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none';"
+    />
+    <title>Flood News - Flood Guard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <nav class="top-nav">
+        <div class="nav-left">
+          <a class="nav-tab" href="index.html">Home</a>
+          <a class="nav-tab" href="flood-reports.html">Flood Photo Reports</a>
+          <a class="nav-tab active" href="news.html">Flood News</a>
+          <a class="nav-tab" href="about.html">About the App</a>
+        </div>
+        <div class="top-right-menu">
+          <div class="quick-menu">
+            <button id="top-menu-button" class="menu-icon-btn" type="button">☰</button>
+            <div id="top-menu-dropdown" class="menu-dropdown hidden" role="menu">
+              <a href="settings.html" role="menuitem" class="menu-item">Settings</a>
+              <a href="notifications.html" role="menuitem" class="menu-item">Notifications</a>
+              <a href="saved-alerts.html" role="menuitem" class="menu-item">Saved Alerts</a>
+              <a href="help-support.html" role="menuitem" class="menu-item">Help & Support</a>
+              <a href="about.html" role="menuitem" class="menu-item">About App</a>
+            </div>
+          </div>
+        </div>
+      </nav>
+
+      <header class="hero">
+        <p class="eyebrow">Flood Updates</p>
+        <h1>Flood News and Advisories</h1>
+        <p class="subtext">
+          Recent flooding headlines and preparedness updates for communities in Ghana.
+        </p>
+      </header>
+
+      <section class="photo-list-panel">
+        <div class="panel-header">
+          <h3>Latest Updates</h3>
+          <button type="button" id="refresh-news-btn" class="btn btn-secondary btn-small">
+            Refresh Now
+          </button>
+        </div>
+        <p id="news-status" class="geo-status news-status">Loading current flood headlines...</p>
+        <p id="news-next-refresh" class="geo-status news-status"></p>
+        <div id="news-list" class="report-list news-list"></div>
+      </section>
+    </main>
+
+    <script src="security.js"></script>
+    <script src="top-menu.js"></script>
+    <script src="news.js"></script>
+  </body>
+</html>
