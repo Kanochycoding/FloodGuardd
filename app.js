@@ -4,6 +4,7 @@ const locationSuggestions = document.getElementById("location-suggestions");
 const currentLocationButton = document.getElementById("current-location-btn");
 const geoStatus = document.getElementById("geo-status");
 const mapContainer = document.getElementById("ghana-map");
+const mapPanel = document.querySelector(".map-panel");
 const hotspotList = document.getElementById("hotspot-list");
 const hotspotStatus = document.getElementById("hotspot-status");
 const refreshHotspotsButton = document.getElementById("refresh-hotspots-btn");
@@ -320,6 +321,7 @@ hotspotList.addEventListener("click", (event) => {
   const name = trigger.getAttribute("data-name");
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !name) return;
   updateMap(latitude, longitude, name);
+  focusInteractiveMap();
 });
 
 if (floodReportForm && reportLocationInput && reportMessageInput && reportStatus) {
@@ -910,6 +912,11 @@ function updateMap(latitude, longitude, label) {
   if (reportLocationInput && !reportLocationInput.value.trim()) {
     reportLocationInput.value = label.replace(", Ghana", "");
   }
+}
+
+function focusInteractiveMap() {
+  if (!mapPanel) return;
+  mapPanel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function ensureMapReady() {
