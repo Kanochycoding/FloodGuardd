@@ -14,6 +14,7 @@ const NOTIFICATION_SETTINGS_KEY = "floodGuardNotificationSettings";
 const NOTIFICATION_HISTORY_KEY = "floodGuardNotificationHistory";
 const MAX_HISTORY_ITEMS = 25;
 const NOTIFICATION_SW_URL = "./notification-sw.js";
+const SW_READY_TIMEOUT_MS = 4000;
 
 function safeGetStorageItem(key) {
   try {
@@ -224,9 +225,12 @@ async function ensureNotificationServiceWorker() {
     if (!registration) {
       registration = await navigator.serviceWorker.register(NOTIFICATION_SW_URL);
     }
-    // On mobile, wait for active worker before trying showNotification().
-    if (!registration.active) {
-      await navigator.serviceWorker.ready;
+    // On some mobile browsers this can stall forever; bound the wait.
+    if (!registration.active && navigator.serviceWorker.ready) {
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((resolve) => window.setTimeout(resolve, SW_READY_TIMEOUT_MS)),
+      ]);
     }
   } catch (_error) {
     // Ignore registration errors and fall back to Notification API.
@@ -243,8 +247,7 @@ async function dispatchDesktopNotification(title, options) {
 
   try {
     if ("serviceWorker" in navigator) {
-      const registration =
-        (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.ready);
+      const registration = await navigator.serviceWorker.getRegistration();
       if (registration) {
         await registration.showNotification(title, options);
         return true;

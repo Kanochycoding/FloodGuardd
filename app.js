@@ -40,6 +40,7 @@ const FLOOD_NOTIFICATION_HISTORY_LIMIT = 30;
 const FLOOD_NOTIFICATION_SW_URL = "./notification-sw.js";
 const GPS_PRECISE_ACCURACY_METERS = 3000;
 const GPS_MAX_ACCEPTABLE_ACCURACY_METERS = 10000;
+const FLOOD_SW_READY_TIMEOUT_MS = 4000;
 const NEWS_SIGNAL_FEEDS = [
   "https://news.google.com/rss/search?q=ghana+flood+OR+flooding+ghana+when:7d&hl=en-GB&gl=GH&ceid=GH:en",
   "https://news.google.com/rss/search?q=site:myjoyonline.com+flood+ghana+when:7d&hl=en-GB&gl=GH&ceid=GH:en",
@@ -1531,8 +1532,11 @@ async function ensureFloodNotificationServiceWorker() {
     if (!registration) {
       registration = await navigator.serviceWorker.register(FLOOD_NOTIFICATION_SW_URL);
     }
-    if (!registration.active) {
-      await navigator.serviceWorker.ready;
+    if (!registration.active && navigator.serviceWorker.ready) {
+      await Promise.race([
+        navigator.serviceWorker.ready,
+        new Promise((resolve) => window.setTimeout(resolve, FLOOD_SW_READY_TIMEOUT_MS)),
+      ]);
     }
   } catch (_error) {
     // Continue without service worker and fallback to Notification API.
@@ -1549,8 +1553,7 @@ async function sendFloodNotification({ areaName, fromLevel, toLevel, probability
   const body = `${fromText}${toLevel.toUpperCase()} flood risk in ${areaName}. Model probability: ${probabilityPercent}%.`;
   try {
     if ("serviceWorker" in navigator) {
-      const registration =
-        (await navigator.serviceWorker.getRegistration()) || (await navigator.serviceWorker.ready);
+      const registration = await navigator.serviceWorker.getRegistration();
       if (registration) {
         await registration.showNotification("Flood Guard Alert", {
           body,
