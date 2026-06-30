@@ -40,6 +40,7 @@ const FLOOD_NOTIFICATION_HISTORY_KEY = "floodGuardNotificationHistory";
 const FLOOD_NOTIFICATION_COOLDOWN_MS = 20 * 60 * 1000;
 const FLOOD_NOTIFICATION_HISTORY_LIMIT = 30;
 const FLOOD_NOTIFICATION_SW_URL = "./notification-sw.js";
+const HOTSPOT_CACHE_KEY = "floodGuardHotspotCache";
 const LOCATION_TO_NOTIFICATION_PROMPT_KEY = "floodGuardLocationNotificationPrompted";
 const GPS_PRECISE_ACCURACY_METERS = 3000;
 const GPS_MAX_ACCEPTABLE_ACCURACY_METERS = 10000;
@@ -206,7 +207,7 @@ window.setInterval(() => {
   refreshNewsRiskSignal().catch(() => {});
 }, NEWS_SIGNAL_REFRESH_MS);
 window.setInterval(() => {
-  triggerHotspotRefresh().catch(() => {});
+  triggerHotspotRefresh({ quiet: true }).catch(() => {});
 }, HOTSPOT_AUTO_REFRESH_MS);
 
 form.addEventListener("submit", async (event) => {
@@ -306,7 +307,7 @@ currentLocationButton.addEventListener("click", async () => {
 });
 
 refreshHotspotsButton.addEventListener("click", async () => {
-  await triggerHotspotRefresh();
+  await triggerHotspotRefresh({ quiet: false });
 });
 
 viewMoreHotspotsButton?.addEventListener("click", () => {
@@ -949,13 +950,15 @@ function ensureMapReady() {
   hotspotLayer = window.L.layerGroup().addTo(ghanaMap);
 }
 
-async function loadFloodProneAreas() {
+async function loadFloodProneAreas(options = {}) {
+  const quiet = options.quiet === true;
   if (isHotspotRefreshing) return;
   isHotspotRefreshing = true;
-  hotspotStatus.textContent = "Loading current hotspot risk levels...";
-  refreshHotspotsButton.disabled = true;
-  refreshHotspotsButton.textContent = "Refreshing...";
-  hotspotList.innerHTML = "";
+  if (!quiet) {
+    hotspotStatus.textContent = "Loading current hotspot risk levels...";
+    refreshHotspotsButton.disabled = true;
+    refreshHotspotsButton.textContent = "Refreshing...";
+  }
   try {
     await refreshNewsRiskSignal().catch(() => {});
 
@@ -1021,20 +1024,52 @@ async function loadFloodProneAreas() {
     visibleHotspotCount = HOTSPOTS_VISIBLE_COUNT;
     renderHotspotList(sortedAreas);
     renderHotspotsOnMap(sortedAreas);
+    saveHotspotCache(sortedAreas);
 
     const activeFlooding = sortedAreas.filter((item) => item.isCurrentFlooding).length;
     hotspotStatus.textContent = `Updated ${new Date().toLocaleTimeString()} | ${activeFlooding} currently flooding area(s) | Auto-updates every 10 min`;
   } catch (_error) {
-    hotspotStatus.textContent = "Could not refresh hotspot list right now. Retrying automatically.";
+    if (!quiet) {
+      hotspotStatus.textContent = "Could not refresh hotspot list right now. Retrying automatically.";
+    }
   } finally {
-    refreshHotspotsButton.disabled = false;
-    refreshHotspotsButton.textContent = "Refresh List";
+    if (!quiet) {
+      refreshHotspotsButton.disabled = false;
+      refreshHotspotsButton.textContent = "Refresh List";
+    }
     isHotspotRefreshing = false;
   }
 }
 
-async function triggerHotspotRefresh() {
-  await loadFloodProneAreas();
+async function triggerHotspotRefresh(options = {}) {
+  await loadFloodProneAreas(options);
+}
+
+function loadHotspotCache() {
+  try {
+    const raw = localStorage.getItem(HOTSPOT_CACHE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (item) =>
+        item &&
+        typeof item.name === "string" &&
+        Number.isFinite(item.latitude) &&
+        Number.isFinite(item.longitude) &&
+        typeof item.riskLevel === "string",
+    );
+  } catch (_error) {
+    return [];
+  }
+}
+
+function saveHotspotCache(areas) {
+  try {
+    localStorage.setItem(HOTSPOT_CACHE_KEY, JSON.stringify(areas));
+  } catch (_error) {
+    // Ignore cache storage failures.
+  }
 }
 
 function isAreaCurrentlyFlooding(area, riskInputs, risk, localNewsScore) {
@@ -1900,5 +1935,13 @@ function escapeHtml(value) {
 }
 
 ensureMapReady();
-triggerHotspotRefresh().catch(() => {});
+const cachedHotspots = loadHotspotCache();
+if (cachedHotspots.length) {
+  lastHotspots = cachedHotspots;
+  visibleHotspotCount = HOTSPOTS_VISIBLE_COUNT;
+  renderHotspotList(cachedHotspots);
+  renderHotspotsOnMap(cachedHotspots);
+  hotspotStatus.textContent = "Showing last known flood-prone areas. Updating quietly...";
+}
+triggerHotspotRefresh({ quiet: true }).catch(() => {});
 renderFloodReports(loadFloodReports());
