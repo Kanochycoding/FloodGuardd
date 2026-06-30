@@ -38,6 +38,8 @@ const FLOOD_NOTIFICATION_HISTORY_KEY = "floodGuardNotificationHistory";
 const FLOOD_NOTIFICATION_COOLDOWN_MS = 20 * 60 * 1000;
 const FLOOD_NOTIFICATION_HISTORY_LIMIT = 30;
 const FLOOD_NOTIFICATION_SW_URL = "./notification-sw.js";
+const GPS_PRECISE_ACCURACY_METERS = 3000;
+const GPS_MAX_ACCEPTABLE_ACCURACY_METERS = 10000;
 const NEWS_SIGNAL_FEEDS = [
   "https://news.google.com/rss/search?q=ghana+flood+OR+flooding+ghana+when:7d&hl=en-GB&gl=GH&ceid=GH:en",
   "https://news.google.com/rss/search?q=site:myjoyonline.com+flood+ghana+when:7d&hl=en-GB&gl=GH&ceid=GH:en",
@@ -216,28 +218,41 @@ currentLocationButton.addEventListener("click", async () => {
   setLoadingState(true);
   geoStatus.textContent = "Reading your current location...";
   try {
-    let coords = await getBestAvailableCoordinates();
+    const coords = await getBestAvailableCoordinates();
     if (!isWithinGhana(coords.latitude, coords.longitude)) {
-      if (coords.source === "ip") {
-        // IP geolocation can be inaccurate on mobile networks and VPNs.
-        coords = { latitude: 7.9465, longitude: -1.0232, source: "fallback" };
-      } else {
-        throw new Error("Detected location is outside Ghana coverage.");
-      }
+      throw new Error(
+        coords.source === "ip"
+          ? "Network location looks outside Ghana. Enable device GPS/Precise Location and try again."
+          : "Detected location is outside Ghana coverage.",
+      );
     }
     const place = await resolvePlaceFromCoordinates(coords.latitude, coords.longitude);
-    input.value = `${place.name}, ${place.country}`;
+    const isApproximate =
+      coords.source === "ip" ||
+      (coords.source === "gps" &&
+        Number.isFinite(coords.accuracy) &&
+        coords.accuracy > GPS_PRECISE_ACCURACY_METERS);
+    const displayPlace = isApproximate
+      ? { ...place, name: "Approximate Area" }
+      : place;
+    input.value = `${displayPlace.name}, ${displayPlace.country}`;
 
-    const riskInputs = await getRiskInputs(place.latitude, place.longitude);
-    const risk = evaluateLocationRisk(place, riskInputs);
-    renderResult(place, riskInputs, risk);
+    const riskInputs = await getRiskInputs(displayPlace.latitude, displayPlace.longitude);
+    const risk = evaluateLocationRisk(displayPlace, riskInputs);
+    renderResult(displayPlace, riskInputs, risk);
 
-    geoStatus.textContent =
-      coords.source === "ip"
-        ? "Using approximate network location in Ghana."
-        : coords.source === "fallback"
-          ? "Using Ghana fallback location because network location was inaccurate."
-          : "Using your current GPS location in Ghana.";
+    if (coords.source === "ip") {
+      geoStatus.textContent =
+        "Using approximate network location. For exact location, enable GPS and Precise Location in browser settings.";
+    } else if (Number.isFinite(coords.accuracy)) {
+      const roundedAccuracy = Math.round(coords.accuracy);
+      geoStatus.textContent =
+        roundedAccuracy > GPS_PRECISE_ACCURACY_METERS
+          ? `Using approximate GPS fix (~${roundedAccuracy}m accuracy). Move outdoors and retry for better precision.`
+          : `Using your current GPS location (~${roundedAccuracy}m accuracy).`;
+    } else {
+      geoStatus.textContent = "Using your current GPS location in Ghana.";
+    }
   } catch (error) {
     showError(error instanceof Error ? error.message : "Location request failed.");
     geoStatus.textContent = "Could not use current location.";
@@ -758,7 +773,16 @@ async function getBestAvailableCoordinates() {
       timeout: 20000,
       maximumAge: 0,
     });
-    return { ...gps, source: "gps" };
+    if (!Number.isFinite(gps.accuracy) || gps.accuracy <= GPS_MAX_ACCEPTABLE_ACCURACY_METERS) {
+      return { ...gps, source: "gps" };
+    }
+    // Retry one more time when first fix is too coarse.
+    const refinedGps = await readCurrentCoordinates({
+      enableHighAccuracy: true,
+      timeout: 30000,
+      maximumAge: 0,
+    });
+    return { ...refinedGps, source: "gps" };
   } catch (_error) {
     try {
       const relaxed = await readCurrentCoordinates({
@@ -781,6 +805,7 @@ function readCurrentCoordinates(options) {
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
         }),
       (error) => {
         if (error.code === error.PERMISSION_DENIED) {
