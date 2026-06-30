@@ -1941,7 +1941,6 @@ if (cachedHotspots.length) {
   visibleHotspotCount = HOTSPOTS_VISIBLE_COUNT;
   renderHotspotList(cachedHotspots);
   renderHotspotsOnMap(cachedHotspots);
-  hotspotStatus.textContent = "Showing last known flood-prone areas. Updating quietly...";
 }
 triggerHotspotRefresh({ quiet: true }).catch(() => {});
 renderFloodReports(loadFloodReports());
