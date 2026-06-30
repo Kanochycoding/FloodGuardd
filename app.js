@@ -158,6 +158,25 @@ const GHANA_TOWNS_AND_CITIES = [
   "Dambai",
 ];
 
+function isStandaloneDisplayMode() {
+  try {
+    return Boolean(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function isIosSafariBrowser() {
+  const ua = String(navigator.userAgent || "").toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua);
+  const isSafari = /safari/.test(ua) && !/crios|fxios|edgios|opr|opios/.test(ua);
+  return isIos && isSafari;
+}
+
+function requiresIosHomeScreenForNotifications() {
+  return isIosSafariBrowser() && !isStandaloneDisplayMode();
+}
+
 let ghanaMap = null;
 let selectedMarker = null;
 let hotspotLayer = null;
@@ -1666,6 +1685,7 @@ function describeWeatherCondition(weatherCode, maxDailyRain) {
 
 async function promptNotificationAfterLocationPermission() {
   if (!window.isSecureContext || !("Notification" in window)) return null;
+  if (requiresIosHomeScreenForNotifications()) return null;
   if (Notification.permission !== "default") return null;
 
   try {

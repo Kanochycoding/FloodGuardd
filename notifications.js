@@ -33,6 +33,25 @@ function safeSetStorageItem(key, value) {
   }
 }
 
+function isStandaloneDisplayMode() {
+  try {
+    return Boolean(window.matchMedia && window.matchMedia("(display-mode: standalone)").matches);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function isIosSafariBrowser() {
+  const ua = String(navigator.userAgent || "").toLowerCase();
+  const isIos = /iphone|ipad|ipod/.test(ua);
+  const isSafari = /safari/.test(ua) && !/crios|fxios|edgios|opr|opios/.test(ua);
+  return isIos && isSafari;
+}
+
+function requiresIosHomeScreenForNotifications() {
+  return isIosSafariBrowser() && !isStandaloneDisplayMode();
+}
+
 function getDefaultNotificationSettings() {
   return {
     enabled: true,
@@ -172,6 +191,13 @@ function capitalize(value) {
 
 function updatePermissionStatusLabel() {
   if (!permissionStatus) return;
+  if (requiresIosHomeScreenForNotifications()) {
+    permissionStatus.textContent =
+      "Safari on iPhone requires Add to Home Screen for notifications. Install app and open from home screen icon.";
+    if (requestPermissionButton) requestPermissionButton.disabled = true;
+    if (testNotificationButton) testNotificationButton.disabled = true;
+    return;
+  }
   if (!window.isSecureContext) {
     permissionStatus.textContent =
       "Notifications need HTTPS or localhost. Open this app from http://localhost.";
@@ -198,6 +224,11 @@ function updatePermissionStatusLabel() {
 }
 
 async function requestPermission() {
+  if (requiresIosHomeScreenForNotifications()) {
+    settingsStatus.textContent =
+      "On iPhone Safari, first Add to Home Screen, then open the app from the icon to allow notifications.";
+    return;
+  }
   if (!("Notification" in window)) {
     settingsStatus.textContent = "This browser does not support notifications.";
     return;
@@ -266,6 +297,11 @@ async function dispatchDesktopNotification(title, options) {
 }
 
 async function sendTestNotification() {
+  if (requiresIosHomeScreenForNotifications()) {
+    settingsStatus.textContent =
+      "Test unavailable in Safari tab. Open Flood Guard from Home Screen icon and try again.";
+    return;
+  }
   if (!window.isSecureContext) {
     settingsStatus.textContent =
       "Test failed: notifications need HTTPS or localhost (http://localhost).";
